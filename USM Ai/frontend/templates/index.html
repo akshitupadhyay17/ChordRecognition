@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Chord & Tempo Predictor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Variables for easy theming */
+        :root {
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --secondary-color: #6c757d;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --text-color: #333;
+            --border-color: #dee2e6;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+            --spinner-color: var(--primary-color);
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align items to the top */
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            background-color: var(--card-background);
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+            transition: all 0.3s ease-in-out;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        p {
+            color: var(--secondary-color);
+            margin-bottom: 25px;
+            font-size: 0.95em;
+        }
+
+        /* Form Styling */
+        #uploadForm {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px; /* Spacing between elements */
+        }
+
+        /* Hide default file input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Custom File Upload Button */
+        .custom-file-upload {
+            display: inline-block;
+            padding: 12px 25px;
+            cursor: pointer;
+            background-color: var(--secondary-color);
+            color: white;
+            border-radius: 5px;
+            transition: background-color 0.2s ease;
+            font-weight: 400;
+            border: none;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #5a6268;
+        }
+
+        #fileName {
+            font-size: 0.9em;
+            color: var(--text-color);
+            margin-top: -10px; /* Adjust spacing */
+            font-style: italic;
+            display: block; /* Ensure it takes its own line */
+            min-height: 1.5em; /* Prevent layout shift */
+        }
+
+        /* Submit Button */
+        button[type="submit"] {
+            padding: 12px 30px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+
+        button[type="submit"]:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button[type="submit"]:active {
+            transform: scale(0.98);
+        }
+
+        button[type="submit"]:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid var(--spinner-color); /* Blue */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto; /* Center spinner */
+            display: none; /* Hidden by default */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Response Area Styling */
+        #response {
+            margin-top: 30px;
+            text-align: left;
+            background-color: #fdfdff; /* Slightly off-white */
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: none; /* Hidden until results are ready */
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #response.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        #response h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        #result-content p {
+            margin-bottom: 10px;
+            color: var(--text-color); /* Reset color */
+            font-size: 1em; /* Reset font size */
+        }
+
+         #result-content p strong {
+            color: #333; /* Darker label */
+            margin-right: 5px;
+         }
+
+        #result-content.error {
+            color: var(--error-color);
+            font-weight: 600;
+        }
+
+        /* Table for Timespans */
+        #timespans-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        #timespans-table th, #timespans-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        #timespans-table th {
+            background-color: #e9ecef;
+            font-weight: 600;
+        }
+
+        #timespans-table td:nth-child(1) { width: 30%; } /* Chord */
+        #timespans-table td:nth-child(2) { width: 35%; } /* Start */
+        #timespans-table td:nth-child(3) { width: 35%; } /* End */
+
+        /* Responsive adjustments (optional) */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            button[type="submit"], .custom-file-upload {
+                padding: 10px 20px;
+            }
+            #timespans-table th, #timespans-table td {
+                 padding: 6px 8px;
+                 font-size: 0.9em;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Audio Chord & Tempo Predictor</h1>
+        <p>Upload an audio file (e.g., WAV, MP3) to analyze its chord progression and tempo.</p>
+
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label for="audioFile" class="custom-file-upload">Choose Audio File</label>
+            <input type="file" id="audioFile" name="audio" accept="audio/*" required>
+            <span id="fileName">No file chosen</span>
+            <button type="submit" id="submitButton">Upload and Predict</button>
+        </form>
+
+        <div id="loader" class="loader"></div>
+
+        <div id="response">
+            <h3>Prediction Results</h3>
+            <div id="result-content">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById("uploadForm");
+        const audioFile = document.getElementById("audioFile");
+        const fileNameDisplay = document.getElementById("fileName");
+        const submitButton = document.getElementById("submitButton");
+        const loader = document.getElementById("loader");
+        const responseDiv = document.getElementById("response");
+        const resultContent = document.getElementById("result-content");
+
+        // Update file name display when a file is chosen
+        audioFile.addEventListener("change", function() {
+            if (audioFile.files.length > 0) {
+                fileNameDisplay.textContent = audioFile.files[0].name;
+            } else {
+                fileNameDisplay.textContent = "No file chosen";
+            }
+        });
+
+        // Handle form submission
+        uploadForm.addEventListener("submit", function(event) {
+            event.preventDefault(); // Prevent default page reload
+            const file = audioFile.files[0];
+
+            if (!file) {
+                alert("Please select an audio file first.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("audio", file);
+
+            // --- Show Loading State ---
+            loader.style.display = "block";
+            responseDiv.classList.remove("visible"); // Hide previous results
+            responseDiv.style.display = "none"; // Ensure it's hidden
+            resultContent.innerHTML = ""; // Clear previous content
+            submitButton.disabled = true; // Prevent multiple submissions
+
+            // --- Make the POST request ---
+            fetch("/predict", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Try to parse error json, otherwise throw generic error
+                    return response.json().then(errData => {
+                        throw new Error(errData.error || `Server responded with status: ${response.status}`);
+                    }).catch(() => { // If parsing error JSON fails
+                         throw new Error(`Server responded with status: ${response.status}`);
+                    });
+                }
+                return response.json(); // Parse successful JSON response
+            })
+            .then(data => {
+                // --- Hide Loading State ---
+                loader.style.display = "none";
+                submitButton.disabled = false;
+
+                if (data.error) {
+                    // Display error message from backend
+                    displayError(data.error);
+                } else {
+                    // Display successful prediction results
+                    displayResults(data);
+                }
+            })
+            .catch(error => {
+                // --- Hide Loading State on Error ---
+                loader.style.display = "none";
+                submitButton.disabled = false;
+
+                // Display fetch/network error message
+                console.error("Error during prediction request:", error);
+                displayError(`Request failed: ${error.message || "Unable to connect to the server."}`);
+            });
+        });
+
+        // Function to display successful results
+        function displayResults(data) {
+            resultContent.classList.remove("error"); // Remove error class if present
+
+            // Tempo
+            const tempoP = document.createElement("p");
+            tempoP.innerHTML = `<strong>Estimated Tempo:</strong> ${data.song_tempo.toFixed(2)} BPM`;
+
+            // Chords List
+            const chordsP = document.createElement("p");
+            chordsP.innerHTML = `<strong>Predicted Chords:</strong> ${data.predicted_chords.join(', ')}`;
+
+            // Timespans Table
+            const table = document.createElement("table");
+            table.id = "timespans-table";
+            const thead = table.createTHead();
+            const tbody = table.createTBody();
+            const headerRow = thead.insertRow();
+            const headers = ["Chord", "Start Time (s)", "End Time (s)"];
+            headers.forEach(text => {
+                const th = document.createElement("th");
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+
+            data.chord_timespans.forEach((timespan, i) => {
+                const row = tbody.insertRow();
+                const chord = data.predicted_chords[i] || 'N/A'; // Handle potential mismatch
+                const startTime = timespan[0].toFixed(2);
+                const endTime = timespan[1].toFixed(2);
+
+                row.insertCell().textContent = chord;
+                row.insertCell().textContent = startTime;
+                row.insertCell().textContent = endTime;
+            });
+
+            resultContent.appendChild(tempoP);
+            resultContent.appendChild(chordsP);
+            resultContent.appendChild(table);
+
+            responseDiv.style.display = "block"; // Make sure display is block before adding class
+            // Use timeout to allow display:block to take effect before opacity transition starts
+            setTimeout(() => responseDiv.classList.add("visible"), 10);
+        }
+
+        // Function to display error messages
+        function displayError(errorMessage) {
+            resultContent.classList.add("error");
+            resultContent.innerHTML = `<p><strong>Error:</strong> ${errorMessage}</p>`;
+            responseDiv.style.display = "block";
+             setTimeout(() => responseDiv.classList.add("visible"), 10);
+        }
+
+    </script>
+
+</body>
+</html>
